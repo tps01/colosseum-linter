@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    name: pytest + compile + vsix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install pytest
+        run: python -m pip install -U pip pytest
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+      - name: Build VSIX
+        run: bash scripts/build.sh
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: colosseum-linter-vsix
+          path: extension/colosseum-linter-*.vsix
+          if-no-files-found: error

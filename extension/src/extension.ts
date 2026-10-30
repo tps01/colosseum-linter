@@ -10,11 +10,12 @@ import {
 const REFRESH_COMMAND = "colosseumLinter.refreshStubs";
 
 interface GeneratorSummary {
-  stub_path: string;
-  catalog_path?: string;
+  stub_path: string | null;
+  catalog_path?: string | null;
   namespaces: Record<string, string>;
   catalog?: NamespaceCatalog;
   warnings: string[];
+  skipped_write?: boolean;
 }
 
 let statusBarItem: vscode.StatusBarItem;
@@ -180,6 +181,12 @@ function refreshOpenDocumentDiagnostics(): void {
   }
 }
 
+function formatPluginFailures(warnings: string[]): string {
+  const lines = warnings.slice(0, 5);
+  const extra = warnings.length > 5 ? `\n…and ${warnings.length - 5} more` : "";
+  return lines.join("\n") + extra;
+}
+
 async function refreshStubs(context: vscode.ExtensionContext): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
@@ -205,29 +212,60 @@ async function refreshStubs(context: vscode.ExtensionContext): Promise<void> {
 
   try {
     const summary = await runGenerator(python, pythonPackageRoot(context), outDir);
-    currentCatalog = summary.catalog;
-    if (!currentCatalog) {
+    const names = Object.keys(summary.namespaces).sort();
+    const hadFailures = summary.warnings.length > 0;
+
+    if (summary.skipped_write || (names.length === 0 && hadFailures)) {
+      // Keep last-good in-memory catalog; do not replace with empty.
+      statusBarItem.text = "$(warning) Colosseum stubs: plugins failed";
+      statusBarItem.tooltip = formatPluginFailures(summary.warnings);
+      void vscode.window.showWarningMessage(
+        "Colosseum stubs: plugin entry points failed to load. " +
+          "Keeping previous stubs if any. Check the selected Python interpreter.\n\n" +
+          formatPluginFailures(summary.warnings),
+      );
+      // Keep using previous catalog for diagnostics.
+      refreshOpenDocumentDiagnostics();
+      return;
+    }
+
+    if (summary.catalog) {
+      currentCatalog = summary.catalog;
+    } else {
       loadCatalogFromWorkspace();
     }
     refreshOpenDocumentDiagnostics();
 
-    const names = Object.keys(summary.namespaces).sort();
     if (names.length === 0) {
       statusBarItem.text = "$(info) Colosseum stubs: none";
       statusBarItem.tooltip =
         "No colosseum.plugins namespaces found. Install plugins in the selected venv.";
     } else {
       statusBarItem.text = `$(check) Colosseum stubs: ${names.length}`;
-      statusBarItem.tooltip = `Namespaces: ${names.join(", ")}\n${summary.stub_path}`;
+      const stubHint = summary.stub_path ?? outDir;
+      statusBarItem.tooltip = `Namespaces: ${names.join(", ")}\n${stubHint}`;
     }
+
+    if (hadFailures) {
+      // Partial success: some plugins loaded, some failed.
+      statusBarItem.tooltip =
+        `${statusBarItem.tooltip}\n\nWarnings:\n${formatPluginFailures(summary.warnings)}`;
+      void vscode.window.showWarningMessage(
+        `Colosseum stubs: some plugins failed to load.\n\n${formatPluginFailures(summary.warnings)}`,
+      );
+    }
+
     for (const warning of summary.warnings) {
       console.warn(`[colosseum-linter] ${warning}`);
     }
   } catch (err) {
+    // Failed refresh must not wipe a previously good catalog.
     const message = err instanceof Error ? err.message : String(err);
     statusBarItem.text = "$(error) Colosseum stubs";
     statusBarItem.tooltip = message;
-    void vscode.window.showErrorMessage(`Colosseum stubs failed: ${message}`);
+    void vscode.window.showErrorMessage(
+      `Colosseum stubs failed (previous stubs kept if any): ${message}`,
+    );
   }
 }
 
