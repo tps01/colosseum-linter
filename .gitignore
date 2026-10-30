@@ -1,0 +1,23 @@
+# Extension build
+extension/out/
+extension/node_modules/
+extension/*.vsix
+*.vsix
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Generated stubs (workspace-local)
+typings/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

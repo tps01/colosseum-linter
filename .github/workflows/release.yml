@@ -1,0 +1,85 @@
+# Tag vX.Y.Z (or workflow_dispatch for artifacts only).
+# Builds the Cursor/VS Code .vsix via scripts/build.sh.
+
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-vsix:
+    name: build vsix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Build VSIX
+        run: bash scripts/build.sh
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: colosseum-linter-vsix
+          path: extension/colosseum-linter-*.vsix
+          if-no-files-found: error
+
+  publish:
+    name: publish GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [build-vsix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./extension/package.json').version")"
+          if [[ "$tag" != "$version" ]]; then
+            echo "Tag v${tag} does not match extension/package.json version ${version}" >&2
+            exit 1
+          fi
+
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: colosseum-linter-vsix
+          path: release-files
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Colosseum Linter ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            Download the `.vsix` below, then in Cursor or VS Code:
+
+            **Extensions → ⋯ → Install from VSIX…**
+
+            Or:
+
+            ```bash
+            cursor --install-extension ./colosseum-linter-<version>.vsix
+            ```
+
+            After install, select the Python interpreter that has your Colosseum plugins and run **Colosseum: Refresh namespace stubs**.
+          files: release-files/*
+          fail_on_unmatched_files: true

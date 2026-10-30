@@ -1,0 +1,66 @@
+{
+  "name": "colosseum-linter",
+  "displayName": "Colosseum Linter",
+  "description": "IntelliSense and linting for Colosseum test scripts. Discovers colosseum.plugins in your active Python venv, generates Pylance stubs so col.equipment.* (and third-party namespaces) complete and Ctrl+Click correctly, and warns on unknown namespaces or plugin attributes.",
+  "version": "0.2.0",
+  "publisher": "colosseum",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "workspaceContains:**/*.py"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "colosseumLinter.refreshStubs",
+        "title": "Colosseum: Refresh namespace stubs"
+      }
+    ],
+    "configuration": {
+      "title": "Colosseum Linter",
+      "properties": {
+        "colosseumLinter.stubPath": {
+          "type": "string",
+          "default": "typings",
+          "description": "Workspace-relative directory for generated stubs (Pylance default stubPath is typings)."
+        },
+        "colosseumLinter.autoRefreshOnActivate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Regenerate stubs when the extension activates."
+        },
+        "colosseumLinter.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn on unknown col.<namespace> / plugin attributes using the discovered catalog."
+        },
+        "colosseumLinter.diagnosticSeverity": {
+          "type": "string",
+          "enum": ["Error", "Warning", "Information", "Hint"],
+          "default": "Warning",
+          "description": "Severity for unknown Colosseum namespace/attribute diagnostics."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.3"
+  },
+  "extensionDependencies": []
+}
