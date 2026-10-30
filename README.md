@@ -6,6 +6,14 @@ Works with any installed package that follows Colosseum plugin conventions (`col
 
 This project is **not published** to a marketplace by default. Install from a local or GitHub release `.vsix` (or F5 while developing).
 
+## Install / smoke checklist
+
+1. Install the `.vsix` (Extensions → Install from VSIX, or a [GitHub Release](https://github.com/tps01/colosseum-linter/releases) asset).
+2. Open a test-script workspace and select the Python interpreter that has `colosseum-core` + plugins installed.
+3. Run **Colosseum: Refresh namespace stubs** (or rely on auto-refresh on activate).
+4. In a script with `import colosseum as col`, confirm completion / Ctrl+Click on something like `col.equipment.vsg.set_frequency`.
+5. Confirm a squiggle on a deliberate bad path such as `col.equipment.nope` or `col.not_a_plugin`.
+
 ## How it works
 
 1. Uses the **selected Python interpreter** (venv where your Colosseum plugins are installed).
@@ -59,7 +67,7 @@ In Cursor: Extensions → `...` → **Install from VSIX...** → select the gene
 Or:
 
 ```powershell
-cursor --install-extension .\colosseum-linter-0.1.0.vsix
+cursor --install-extension .\colosseum-linter-1.0.0.vsix
 ```
 
 ## After installing a new plugin

@@ -30,24 +30,37 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     capture = discover_namespaces()
-    stub_path = write_stub(args.out, capture.namespaces)
     catalog = build_catalog(capture.namespace_modules)
-    catalog_path = write_catalog(args.out, catalog)
+
+    # All entry points failed → keep any previous stubs/catalog on disk.
+    skipped_write = bool(capture.warnings) and not capture.namespaces
+    stub_path: Path | None = None
+    catalog_path: Path | None = None
+    if not skipped_write:
+        stub_path = write_stub(args.out, capture.namespaces)
+        catalog_path = write_catalog(args.out, catalog)
 
     summary = {
-        "stub_path": str(stub_path),
-        "catalog_path": str(catalog_path),
+        "stub_path": str(stub_path) if stub_path else None,
+        "catalog_path": str(catalog_path) if catalog_path else None,
         "namespaces": dict(sorted(capture.namespaces.items())),
         "catalog": catalog,
         "warnings": capture.warnings,
+        "skipped_write": skipped_write,
     }
 
     if args.json:
         print(json.dumps(summary))
     else:
         names = ", ".join(sorted(capture.namespaces)) or "(none)"
-        print(f"Wrote {stub_path}")
-        print(f"Wrote {catalog_path}")
+        if skipped_write:
+            print(
+                "Skipped writing stubs: every colosseum.plugins entry point failed to load.",
+                file=sys.stderr,
+            )
+        else:
+            print(f"Wrote {stub_path}")
+            print(f"Wrote {catalog_path}")
         print(f"Namespaces: {names}")
         for warning in capture.warnings:
             print(f"Warning: {warning}", file=sys.stderr)
