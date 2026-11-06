@@ -32,8 +32,15 @@ def main(argv: list[str] | None = None) -> int:
     capture = discover_namespaces()
     catalog = build_catalog(capture.namespace_modules)
 
-    # All entry points failed → keep any previous stubs/catalog on disk.
-    skipped_write = bool(capture.warnings) and not capture.namespaces
+    # Keep any previous stubs/catalog on disk when discovery finds nothing.
+    # That covers every entry point failing (warnings) and a clean empty
+    # interpreter with no colosseum.plugins installed (no warnings).
+    previous_stub = args.out / "colosseum" / "__init__.pyi"
+    previous_catalog = args.out / "colosseum_namespaces.json"
+    has_previous = previous_stub.is_file() or previous_catalog.is_file()
+    skipped_write = not capture.namespaces and (
+        bool(capture.warnings) or has_previous
+    )
     stub_path: Path | None = None
     catalog_path: Path | None = None
     if not skipped_write:
@@ -54,10 +61,18 @@ def main(argv: list[str] | None = None) -> int:
     else:
         names = ", ".join(sorted(capture.namespaces)) or "(none)"
         if skipped_write:
-            print(
-                "Skipped writing stubs: every colosseum.plugins entry point failed to load.",
-                file=sys.stderr,
-            )
+            if capture.warnings:
+                print(
+                    "Skipped writing stubs: every colosseum.plugins entry point "
+                    "failed to load.",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "Skipped writing stubs: no colosseum.plugins namespaces "
+                    "found; keeping previous stubs.",
+                    file=sys.stderr,
+                )
         else:
             print(f"Wrote {stub_path}")
             print(f"Wrote {catalog_path}")

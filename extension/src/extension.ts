@@ -8,6 +8,7 @@ import {
 } from "./diagnostics";
 
 const REFRESH_COMMAND = "colosseumLinter.refreshStubs";
+const SELECT_INTERPRETER_COMMAND = "colosseumLinter.selectInterpreter";
 
 interface GeneratorSummary {
   stub_path: string | null;
@@ -19,6 +20,7 @@ interface GeneratorSummary {
 }
 
 let statusBarItem: vscode.StatusBarItem;
+let interpreterStatusBarItem: vscode.StatusBarItem;
 let diagnosticCollection: vscode.DiagnosticCollection;
 let currentCatalog: NamespaceCatalog | undefined;
 let changeTimer: NodeJS.Timeout | undefined;
@@ -37,9 +39,24 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
 
+  interpreterStatusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    99,
+  );
+  interpreterStatusBarItem.command = SELECT_INTERPRETER_COMMAND;
+  interpreterStatusBarItem.text = "$(vm) Colosseum interpreter";
+  interpreterStatusBarItem.tooltip = "Colosseum linter: select interpreter";
+  interpreterStatusBarItem.show();
+  context.subscriptions.push(interpreterStatusBarItem);
+
   context.subscriptions.push(
     vscode.commands.registerCommand(REFRESH_COMMAND, () => refreshStubs(context)),
+    vscode.commands.registerCommand(SELECT_INTERPRETER_COMMAND, () =>
+      selectInterpreter(),
+    ),
   );
+
+  void updateInterpreterStatusBar();
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((doc) => {
@@ -114,6 +131,41 @@ interface PythonExtensionApi {
       listener: () => void,
     ) => vscode.Disposable;
   };
+}
+
+async function selectInterpreter(): Promise<void> {
+  try {
+    await vscode.commands.executeCommand("python.setInterpreter");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    void vscode.window.showErrorMessage(
+      "Colosseum linter: could not open the Python interpreter picker. " +
+        "Install or enable the Python extension, then try again.\n" +
+        message,
+    );
+  }
+}
+
+function shortenInterpreterPath(python: string): string {
+  const normalized = python.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length >= 3) {
+    return parts.slice(-3).join("/");
+  }
+  return python;
+}
+
+async function updateInterpreterStatusBar(): Promise<void> {
+  const python = await resolvePythonInterpreter();
+  if (!python) {
+    interpreterStatusBarItem.text = "$(vm) Colosseum interpreter";
+    interpreterStatusBarItem.tooltip =
+      "Colosseum linter: select interpreter\nNo interpreter resolved yet.";
+    return;
+  }
+  interpreterStatusBarItem.text = `$(vm) ${shortenInterpreterPath(python)}`;
+  interpreterStatusBarItem.tooltip =
+    `Colosseum linter: select interpreter\nCurrent: ${python}`;
 }
 
 async function resolvePythonInterpreter(): Promise<string | undefined> {
@@ -200,6 +252,7 @@ async function refreshStubs(context: vscode.ExtensionContext): Promise<void> {
 
   const outDir = stubOutDir(folder);
   const python = await resolvePythonInterpreter();
+  await updateInterpreterStatusBar();
   if (!python) {
     statusBarItem.text = "$(error) Colosseum stubs";
     void vscode.window.showErrorMessage(
@@ -217,14 +270,36 @@ async function refreshStubs(context: vscode.ExtensionContext): Promise<void> {
 
     if (summary.skipped_write || (names.length === 0 && hadFailures)) {
       // Keep last-good in-memory catalog; do not replace with empty.
-      statusBarItem.text = "$(warning) Colosseum stubs: plugins failed";
-      statusBarItem.tooltip = formatPluginFailures(summary.warnings);
+      const reason = hadFailures
+        ? "plugin entry points failed to load"
+        : "no colosseum.plugins namespaces found";
+      statusBarItem.text = "$(warning) Colosseum stubs: kept previous";
+      statusBarItem.tooltip =
+        `${reason}\nInterpreter: ${python}` +
+        (hadFailures ? `\n\n${formatPluginFailures(summary.warnings)}` : "");
       void vscode.window.showWarningMessage(
-        "Colosseum stubs: plugin entry points failed to load. " +
-          "Keeping previous stubs if any. Check the selected Python interpreter.\n\n" +
-          formatPluginFailures(summary.warnings),
+        `Colosseum stubs: ${reason}. Keeping previous stubs if any.\n` +
+          `Interpreter: ${python}` +
+          (hadFailures ? `\n\n${formatPluginFailures(summary.warnings)}` : ""),
       );
       // Keep using previous catalog for diagnostics.
+      refreshOpenDocumentDiagnostics();
+      return;
+    }
+
+    if (names.length === 0) {
+      // Empty discovery with nothing previous to keep — do not clobber a
+      // good in-memory catalog from an earlier refresh in this session.
+      statusBarItem.text = "$(info) Colosseum stubs: none";
+      statusBarItem.tooltip =
+        `No colosseum.plugins namespaces found.\nInterpreter: ${python}\n` +
+        "Install plugins in this venv or select the Colosseum interpreter.";
+      void vscode.window.showWarningMessage(
+        "Colosseum stubs: no plugin namespaces found.\n" +
+          `Interpreter: ${python}\n` +
+          "Install colosseum plugins in this venv, or click Colosseum interpreter " +
+          "on the status bar and choose the Colosseum environment, then refresh stubs.",
+      );
       refreshOpenDocumentDiagnostics();
       return;
     }
@@ -236,15 +311,10 @@ async function refreshStubs(context: vscode.ExtensionContext): Promise<void> {
     }
     refreshOpenDocumentDiagnostics();
 
-    if (names.length === 0) {
-      statusBarItem.text = "$(info) Colosseum stubs: none";
-      statusBarItem.tooltip =
-        "No colosseum.plugins namespaces found. Install plugins in the selected venv.";
-    } else {
-      statusBarItem.text = `$(check) Colosseum stubs: ${names.length}`;
-      const stubHint = summary.stub_path ?? outDir;
-      statusBarItem.tooltip = `Namespaces: ${names.join(", ")}\n${stubHint}`;
-    }
+    statusBarItem.text = `$(check) Colosseum stubs: ${names.length}`;
+    const stubHint = summary.stub_path ?? outDir;
+    statusBarItem.tooltip =
+      `Namespaces: ${names.join(", ")}\n${stubHint}\nInterpreter: ${python}`;
 
     if (hadFailures) {
       // Partial success: some plugins loaded, some failed.
