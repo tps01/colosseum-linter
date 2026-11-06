@@ -83,7 +83,7 @@ In Cursor: Extensions → `...` → **Install from VSIX...** → select the gene
 Or:
 
 ```powershell
-cursor --install-extension .\colosseum-linter-1.0.0.vsix
+cursor --install-extension .\colosseum-linter-1.1.0.vsix
 ```
 
 ## After installing a new plugin
