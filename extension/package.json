@@ -26,6 +26,10 @@
       {
         "command": "colosseumLinter.refreshStubs",
         "title": "Colosseum: Refresh namespace stubs"
+      },
+      {
+        "command": "colosseumLinter.selectInterpreter",
+        "title": "Colosseum: Select interpreter"
       }
     ],
     "configuration": {
