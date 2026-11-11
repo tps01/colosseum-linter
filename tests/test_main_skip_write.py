@@ -41,6 +41,47 @@ def test_skipped_write_when_all_plugins_fail(
     assert summary["warnings"]
 
 
+def test_skipped_write_when_empty_and_previous_stubs_exist(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    def fake_discover(*, group: str = "colosseum.plugins", registry=None):
+        return registry if registry is not None else CaptureRegistry()
+
+    monkeypatch.setattr(cli, "discover_namespaces", fake_discover)
+
+    stub = tmp_path / "colosseum" / "__init__.pyi"
+    stub.parent.mkdir(parents=True)
+    stub.write_text("# previous good stub\n", encoding="utf-8")
+    catalog = tmp_path / "colosseum_namespaces.json"
+    catalog.write_text('{"namespaces": {"equipment": {}}}\n', encoding="utf-8")
+
+    code = cli.main(["--out", str(tmp_path), "--json"])
+    assert code == 0
+    assert stub.read_text(encoding="utf-8") == "# previous good stub\n"
+    assert '"equipment"' in catalog.read_text(encoding="utf-8")
+    summary = json.loads(capsys.readouterr().out.strip())
+    assert summary["skipped_write"] is True
+    assert summary["namespaces"] == {}
+    assert summary["warnings"] == []
+
+
+def test_writes_empty_when_no_previous_stubs(tmp_path: Path, monkeypatch) -> None:
+    def fake_discover(*, group: str = "colosseum.plugins", registry=None):
+        return registry if registry is not None else CaptureRegistry()
+
+    monkeypatch.setattr(cli, "discover_namespaces", fake_discover)
+    code = cli.main(["--out", str(tmp_path), "--json"])
+    assert code == 0
+    stub = tmp_path / "colosseum" / "__init__.pyi"
+    assert stub.is_file()
+    assert "No colosseum.plugins namespaces discovered" in stub.read_text(encoding="utf-8")
+    catalog = tmp_path / "colosseum_namespaces.json"
+    data = json.loads(catalog.read_text(encoding="utf-8"))
+    assert data["namespaces"] == {}
+
+
 def test_writes_when_namespaces_present(tmp_path: Path, monkeypatch) -> None:
     api = types.ModuleType("ok.api")
 

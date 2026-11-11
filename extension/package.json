@@ -2,7 +2,7 @@
   "name": "colosseum-linter",
   "displayName": "Colosseum Linter",
   "description": "IntelliSense and linting for Colosseum test scripts. Discovers colosseum.plugins in your active Python venv, generates Pylance stubs so col.equipment.* (and third-party namespaces) complete and Ctrl+Click correctly, and warns on unknown namespaces or plugin attributes.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "colosseum",
   "repository": {
     "type": "git",
@@ -26,6 +26,10 @@
       {
         "command": "colosseumLinter.refreshStubs",
         "title": "Colosseum: Refresh namespace stubs"
+      },
+      {
+        "command": "colosseumLinter.selectInterpreter",
+        "title": "Colosseum: Select interpreter"
       }
     ],
     "configuration": {
