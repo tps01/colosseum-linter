@@ -1,5 +1,7 @@
 # Colosseum Linter (local Cursor / VS Code extension)
 
+[![CI](https://github.com/tps01/colosseum-linter/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/tps01/colosseum-linter/actions/workflows/ci.yml?query=branch%3Adevelop)
+
 For **test-script authors**: generate Pylance stubs so `import colosseum as col` resolves plugin paths like `col.equipment.vsg.set_frequency()` with completions, signatures, and Ctrl+Click. The extension also **lints** unknown namespaces and attributes (for example `col.equipment.nope` or `col.missing_plugin`).
 
 Works with any installed package that follows Colosseum plugin conventions (`colosseum.plugins` entry point + `register_namespace`), including third-party plugins.
